@@ -4,14 +4,15 @@ All MongoDB server versions from 2.6 and higher are supported.
 
 ## Configuration
 
-```toml
+```toml @sample.conf
+# Read metrics from one or many MongoDB servers
 [[inputs.mongodb]]
   ## An array of URLs of the form:
   ##   "mongodb://" [user ":" pass "@"] host [ ":" port]
   ## For example:
   ##   mongodb://user:auth_key@10.10.3.30:27017,
   ##   mongodb://10.10.3.33:18832,
-  servers = ["mongodb://127.0.0.1:27017?connect=direct"]
+  servers = ["mongodb://127.0.0.1:27017/?connect=direct"]
 
   ## When true, collect cluster status.
   ## Note that the query that counts jumbo chunks triggers a COLLSCAN, which

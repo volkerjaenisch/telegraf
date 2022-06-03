@@ -13,7 +13,8 @@ path onto the global path variable
 
 ## Configuration
 
-```toml
+```toml @sample.conf
+# Receive SNMP traps
 [[inputs.snmp_trap]]
   ## Transport, local address, and port to listen on.  Transport must
   ## be "udp://".  Omit local address to listen on all interfaces.

@@ -18,7 +18,7 @@ functions.
 
 ## Configuration
 
-```toml
+```toml @sample.conf
 # Aggregate metrics using a Starlark script
 [[aggregators.starlark]]
   ## The Starlark source can be set as a string in this configuration file, or
@@ -100,5 +100,5 @@ Refer to the section [Common Questions](plugins/processors/starlark/README.md#co
 
 Open a Pull Request to add any other useful Starlark examples.
 
-[Starlark specification]: https://github.com/google/starlark-go/blob/master/doc/spec.md
-[dict]: https://github.com/google/starlark-go/blob/master/doc/spec.md#dictionaries
+[Starlark specification]: https://github.com/google/starlark-go/blob/d1966c6b9fcd/doc/spec.md
+[dict]: https://github.com/google/starlark-go/blob/d1966c6b9fcd/doc/spec.md#dictionaries

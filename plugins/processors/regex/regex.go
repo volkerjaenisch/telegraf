@@ -1,6 +1,8 @@
+//go:generate ../../../tools/readme_config_includer/generator
 package regex
 
 import (
+	_ "embed"
 	"fmt"
 	"regexp"
 
@@ -8,6 +10,10 @@ import (
 	"github.com/influxdata/telegraf/internal/choice"
 	"github.com/influxdata/telegraf/plugins/processors"
 )
+
+// DO NOT REMOVE THE NEXT TWO LINES! This is required to embed the sampleConfig data.
+//go:embed sample.conf
+var sampleConfig string
 
 type Regex struct {
 	Tags         []converter     `toml:"tags"`
@@ -25,6 +31,10 @@ type converter struct {
 	Replacement string `toml:"replacement"`
 	ResultKey   string `toml:"result_key"`
 	Append      bool   `toml:"append"`
+}
+
+func (*Regex) SampleConfig() string {
+	return sampleConfig
 }
 
 func (r *Regex) Init() error {
@@ -97,14 +107,17 @@ func (r *Regex) Init() error {
 func (r *Regex) Apply(in ...telegraf.Metric) []telegraf.Metric {
 	for _, metric := range in {
 		for _, converter := range r.Tags {
-			if value, ok := metric.GetTag(converter.Key); ok {
-				if key, newValue := r.convert(converter, value); newValue != "" {
-					if converter.Append {
-						if v, ok := metric.GetTag(key); ok {
-							newValue = v + newValue
-						}
+			if converter.Key == "*" {
+				for _, tag := range metric.TagList() {
+					regex := r.regexCache[converter.Pattern]
+					if regex.MatchString(tag.Value) {
+						newValue := regex.ReplaceAllString(tag.Value, converter.Replacement)
+						updateTag(converter, metric, tag.Key, newValue)
 					}
-					metric.AddTag(key, newValue)
+				}
+			} else if value, ok := metric.GetTag(converter.Key); ok {
+				if key, newValue := r.convert(converter, value); newValue != "" {
+					updateTag(converter, metric, key, newValue)
 				}
 			}
 		}
@@ -210,6 +223,15 @@ func (r *Regex) convert(c converter, src string) (key string, value string) {
 	}
 
 	return c.Key, value
+}
+
+func updateTag(converter converter, metric telegraf.Metric, key string, newValue string) {
+	if converter.Append {
+		if v, ok := metric.GetTag(key); ok {
+			newValue = v + newValue
+		}
+	}
+	metric.AddTag(key, newValue)
 }
 
 func init() {

@@ -1,23 +1,29 @@
+//go:generate ../../../tools/readme_config_includer/generator
 package opentelemetry
 
 import (
 	"context"
+	_ "embed"
 	"time"
 
 	"github.com/influxdata/influxdb-observability/common"
 	"github.com/influxdata/influxdb-observability/influx2otel"
+	"go.opentelemetry.io/collector/pdata/pmetric/pmetricotlp"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
+	_ "google.golang.org/grpc/encoding/gzip"
+	"google.golang.org/grpc/metadata"
+
 	"github.com/influxdata/telegraf"
 	"github.com/influxdata/telegraf/config"
 	"github.com/influxdata/telegraf/plugins/common/tls"
 	"github.com/influxdata/telegraf/plugins/outputs"
-	"go.opentelemetry.io/collector/model/otlpgrpc"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-
-	// This causes the gRPC library to register gzip compression.
-	_ "google.golang.org/grpc/encoding/gzip"
-	"google.golang.org/grpc/metadata"
 )
+
+// DO NOT REMOVE THE NEXT TWO LINES! This is required to embed the sampleConfig data.
+//go:embed sample.conf
+var sampleConfig string
 
 type OpenTelemetry struct {
 	ServiceAddress string `toml:"service_address"`
@@ -32,8 +38,12 @@ type OpenTelemetry struct {
 
 	metricsConverter     *influx2otel.LineProtocolToOtelMetrics
 	grpcClientConn       *grpc.ClientConn
-	metricsServiceClient otlpgrpc.MetricsClient
+	metricsServiceClient pmetricotlp.Client
 	callOptions          []grpc.CallOption
+}
+
+func (*OpenTelemetry) SampleConfig() string {
+	return sampleConfig
 }
 
 func (o *OpenTelemetry) Connect() error {
@@ -60,7 +70,7 @@ func (o *OpenTelemetry) Connect() error {
 	} else if tlsConfig != nil {
 		grpcTLSDialOption = grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
 	} else {
-		grpcTLSDialOption = grpc.WithInsecure()
+		grpcTLSDialOption = grpc.WithTransportCredentials(insecure.NewCredentials())
 	}
 
 	grpcClientConn, err := grpc.Dial(o.ServiceAddress, grpcTLSDialOption)
@@ -68,7 +78,7 @@ func (o *OpenTelemetry) Connect() error {
 		return err
 	}
 
-	metricsServiceClient := otlpgrpc.NewMetricsClient(grpcClientConn)
+	metricsServiceClient := pmetricotlp.NewClient(grpcClientConn)
 
 	o.metricsConverter = metricsConverter
 	o.grpcClientConn = grpcClientConn
@@ -116,8 +126,7 @@ func (o *OpenTelemetry) Write(metrics []telegraf.Metric) error {
 		}
 	}
 
-	md := otlpgrpc.NewMetricsRequest()
-	md.SetMetrics(batch.GetMetrics())
+	md := pmetricotlp.NewRequestFromMetrics(batch.GetMetrics())
 	if md.Metrics().ResourceMetrics().Len() == 0 {
 		return nil
 	}

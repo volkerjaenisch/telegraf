@@ -1,6 +1,7 @@
 package xpath
 
 import (
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -197,7 +198,7 @@ func TestInvalidTypeQueries(t *testing.T) {
 				"test",
 				map[string]string{},
 				map[string]interface{}{
-					"a": float64(0),
+					"a": math.NaN(),
 				},
 				time.Unix(1577923199, 0),
 			),
@@ -1154,7 +1155,74 @@ func TestEmptySelection(t *testing.T) {
 
 			_, err := parser.Parse([]byte(tt.input))
 			require.Error(t, err)
-			require.Equal(t, err.Error(), "cannot parse with empty selection node")
+			require.Equal(t, "cannot parse with empty selection node", err.Error())
+		})
+	}
+}
+
+func TestEmptySelectionAllowed(t *testing.T) {
+	var tests = []struct {
+		name    string
+		input   string
+		configs []Config
+	}{
+		{
+			name:  "empty path",
+			input: multipleNodesXML,
+			configs: []Config{
+				{
+					Selection: "/Device/NonExisting",
+					Fields:    map[string]string{"value": "number(Value)"},
+					FieldsInt: map[string]string{"mode": "Value/@mode"},
+					Tags:      map[string]string{},
+				},
+			},
+		},
+		{
+			name:  "empty pattern",
+			input: multipleNodesXML,
+			configs: []Config{
+				{
+					Selection: "//NonExisting",
+					Fields:    map[string]string{"value": "number(Value)"},
+					FieldsInt: map[string]string{"mode": "Value/@mode"},
+					Tags:      map[string]string{},
+				},
+			},
+		},
+		{
+			name:  "empty axis",
+			input: multipleNodesXML,
+			configs: []Config{
+				{
+					Selection: "/Device/child::NonExisting",
+					Fields:    map[string]string{"value": "number(Value)"},
+					FieldsInt: map[string]string{"mode": "Value/@mode"},
+					Tags:      map[string]string{},
+				},
+			},
+		},
+		{
+			name:  "empty predicate",
+			input: multipleNodesXML,
+			configs: []Config{
+				{
+					Selection: "/Device[@NonExisting=true]",
+					Fields:    map[string]string{"value": "number(Value)"},
+					FieldsInt: map[string]string{"mode": "Value/@mode"},
+					Tags:      map[string]string{},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			parser := &Parser{Configs: tt.configs, AllowEmptySelection: true, DefaultTags: map[string]string{}, Log: testutil.Logger{Name: "parsers.xml"}}
+			require.NoError(t, parser.Init())
+
+			_, err := parser.Parse([]byte(tt.input))
+			require.NoError(t, err)
 		})
 	}
 }

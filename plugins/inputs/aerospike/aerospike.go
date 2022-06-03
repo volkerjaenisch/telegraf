@@ -1,7 +1,9 @@
+//go:generate ../../../tools/readme_config_includer/generator
 package aerospike
 
 import (
 	"crypto/tls"
+	_ "embed"
 	"fmt"
 	"math"
 	"strconv"
@@ -15,6 +17,10 @@ import (
 	tlsint "github.com/influxdata/telegraf/plugins/common/tls"
 	"github.com/influxdata/telegraf/plugins/inputs"
 )
+
+// DO NOT REMOVE THE NEXT TWO LINES! This is required to embed the sampleConfig data.
+//go:embed sample.conf
+var sampleConfig string
 
 type Aerospike struct {
 	Servers []string `toml:"servers"`
@@ -48,6 +54,10 @@ var protectedHexFields = map[string]bool{
 	"node_name":       true,
 	"cluster_key":     true,
 	"paxos_principal": true,
+}
+
+func (*Aerospike) SampleConfig() string {
+	return sampleConfig
 }
 
 func (a *Aerospike) Gather(acc telegraf.Accumulator) error {
@@ -181,7 +191,7 @@ func (a *Aerospike) gatherServer(acc telegraf.Accumulator, hostPort string) erro
 }
 
 func (a *Aerospike) getNodeInfo(n *as.Node, infoPolicy *as.InfoPolicy) (map[string]string, error) {
-	stats, err := n.RequestInfo(infoPolicy)
+	stats, err := n.RequestInfo(infoPolicy, "statistics")
 	if err != nil {
 		return nil, err
 	}
@@ -190,17 +200,21 @@ func (a *Aerospike) getNodeInfo(n *as.Node, infoPolicy *as.InfoPolicy) (map[stri
 }
 
 func (a *Aerospike) parseNodeInfo(acc telegraf.Accumulator, stats map[string]string, hostPort string, nodeName string) {
-	tags := map[string]string{
+	nTags := map[string]string{
 		"aerospike_host": hostPort,
 		"node_name":      nodeName,
 	}
-	fields := make(map[string]interface{})
-
-	for k, v := range stats {
-		key := strings.Replace(k, "-", "_", -1)
-		fields[key] = parseAerospikeValue(key, v)
+	nFields := make(map[string]interface{})
+	stat := strings.Split(stats["statistics"], ";")
+	for _, pair := range stat {
+		parts := strings.Split(pair, "=")
+		if len(parts) < 2 {
+			continue
+		}
+		key := strings.ReplaceAll(parts[0], "-", "_")
+		nFields[key] = parseAerospikeValue(key, parts[1])
 	}
-	acc.AddFields("aerospike_node", fields, tags, time.Now())
+	acc.AddFields("aerospike_node", nFields, nTags, time.Now())
 }
 
 func (a *Aerospike) getNamespaces(n *as.Node, infoPolicy *as.InfoPolicy) ([]string, error) {
@@ -240,7 +254,7 @@ func (a *Aerospike) parseNamespaceInfo(acc telegraf.Accumulator, stats map[strin
 		if len(parts) < 2 {
 			continue
 		}
-		key := strings.Replace(parts[0], "-", "_", -1)
+		key := strings.ReplaceAll(parts[0], "-", "_")
 		nFields[key] = parseAerospikeValue(key, parts[1])
 	}
 	acc.AddFields("aerospike_namespace", nFields, nTags, time.Now())
@@ -307,7 +321,7 @@ func (a *Aerospike) parseSetInfo(acc telegraf.Accumulator, stats map[string]stri
 			continue
 		}
 
-		key := strings.Replace(pieces[0], "-", "_", -1)
+		key := strings.ReplaceAll(pieces[0], "-", "_")
 		nFields[key] = parseAerospikeValue(key, pieces[1])
 	}
 	acc.AddFields("aerospike_set", nFields, nTags, time.Now())
@@ -399,7 +413,7 @@ func (a *Aerospike) parseHistogram(acc telegraf.Accumulator, stats map[string]st
 		}
 	}
 
-	acc.AddFields(fmt.Sprintf("aerospike_histogram_%v", strings.Replace(histogramType, "-", "_", -1)), nFields, nTags, time.Now())
+	acc.AddFields(fmt.Sprintf("aerospike_histogram_%v", strings.ReplaceAll(histogramType, "-", "_")), nFields, nTags, time.Now())
 }
 
 func splitNamespaceSet(namespaceSet string) (namespace string, set string) {

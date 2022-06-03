@@ -4,11 +4,12 @@ The `xtremio` plugin gathers metrics from a Dell EMC XtremIO Storage Array's V3 
 
 ## Configuration
 
-```toml
+```toml @sample.conf
+ # Gathers Metrics From a Dell EMC XtremIO Storage Array's V3 API
 [[inputs.xtremio]]
   ## XtremIO User Interface Endpoint
   url = "https://xtremio.example.com/" # required
-  
+
   ## Credentials
   username = "user1"
   password = "pass123"
